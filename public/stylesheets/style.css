@@ -1,0 +1,75 @@
+a {
+  color: #060;
+  text-decoration: none;
+}
+div#login {
+  width: 50%;
+  margin: auto;
+  text-align: center;
+}
+div#header {
+  padding-bottom: 15px;
+}
+div#header h1 {
+  display: inline;
+  font-size: 1.0em;
+  padding-right: 0.5em;
+  margin-top: -15px;
+ }
+div#header h2 {
+	display: inline;
+	fon-size: 0.9em;
+}
+div#header a  {
+  float: right;
+  padding-right: 0.5em;
+  display: block;
+  font-size: 1.0em;
+}
+div#header a.action {
+  float: left;
+  display: inline;
+  font-size: 1.0em;
+}
+table {
+  padding: 0px;
+  width: 100%;
+  margin-top: 1.0em;
+  border-top: 1px solid #eee;
+}
+table tr td {
+  padding: 10px 10px 10px 0px;
+  margin: 3px;
+}
+table tr:hover {
+  background-color: #eee;
+}
+table tr td.icon {
+  width: 18px;
+}
+table tr td.size {
+  text-align: right;
+}
+table tr td a {
+  display: block;
+}
+table tr td a.entry {
+	width: 84%;
+	float: left;
+}
+table tr td a.deleteDir, a.deleteFile {
+	width: 1.0em;
+	float: right;
+	display: none;
+}
+table tr td a.rename {
+	width: 15%;
+	display: none;
+	float: right;
+}
+table tr td a.delete {
+	display: none;
+}
+table tr:hover td a {
+	display: block;
+}

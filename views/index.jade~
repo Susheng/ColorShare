@@ -1,0 +1,81 @@
+doctype 5
+html(xmlns='http://www.w3.org/1999/xhtml')
+  head
+    meta(http-equiv='Content-Type', content='text/html; charset=utf-8')
+    link(href='./plus_skin/css/plus.css', rel='stylesheet', type='text/css')
+    link(rel='stylesheet', href='/stylesheets/style.css')
+    link(rel='stylesheet', href='/smoothness/jquery-ui-1.8.20.custom.css');
+  body
+    input#sideToggle(type='checkbox')
+    #mycloud
+      include views/direntries
+    #wrap
+      label#sideMenuControl(for='sideToggle') =
+    #myself
+      .p_m_i_b
+        .p_m
+    #plus
+      a#p_m_sa.p_bt(href='#') Sellect/Deselect ALL
+      a#p_clear.p_bt(href='javascript:;') Clear groups
+      #p_m_b
+        .p_m_i_b
+          .p_m(name='m_1')
+            img(src='plus_img/test_face1.png', small='plus_img/small_test_face1.png')
+            span.p_m_n JIA GUO
+            .c
+            span.p_m_t
+            .p_m_hs
+          .c
+      input#p_m_hi(type='text', value='', style='')
+      .p_m_line
+        .p_m_tips Drag your contacts to the following circles and create new groups.
+      #cycle
+        #new.p_c
+          img.p_c_img(src='plus_skin/img/new_cycle_bg.jpg')
+          .p_c_c_box(style='display: none;')
+          .p_c_c.n_p_c_c Create new group
+          .p_c_hs
+        #c_1.p_c
+          img.p_c_img(src='plus_skin/img/normal_cycle_bg.jpg')
+          .p_c_c_box(style='display: none;')
+          .p_c_c
+            | Group name
+            br
+            span.p_c_c_num 0
+          .p_c_hs
+        .c
+  script(language='javascript', src='http://code.jquery.com/jquery-1.10.2.min.js')
+  script(language='javascript', src='http://code.jquery.com/ui/1.10.3/jquery-ui.js')
+  script(language='javascript', src='./plus_skin/js/plus.js')
+  script(language='javascript', src='./plus_skin/js/mycloud.js')
+  script(type='application/javascript', src='/mycloud/js/ajaxupload.js')
+  script(src='/socket.io/socket.io.js')
+
+  script.
+    $('#p_m_b').plus_member();
+    $('#p_clear').click(function(){
+    location.reload()
+    })
+  script.
+    var socket = io.connect('http://192.168.1.40:2000');
+    socket.on('connect', function () {
+      socket.emit('listDirectory','/');
+    });
+    socket.on('listDirectoryReturn', function(data) {
+      $('#mycloud').load('mycloud',data);
+    });
+    socket.on('deleteFileReturn', function(data) {
+      socket.emit('listDirectory', data);
+    });
+    function refreshDirectory(data) {
+      socket.emit('listDirectory', data);
+    }
+    function renameDirectory(data) {
+      socket.emit('renameDirectory', data);
+    }
+    function deleteFile(data) {
+      socket.emit('deleteFile', data);
+    }
+    function sendfile(filename, user) {
+      socket.emit('sendfile', {'filename':filename, 'user':user});
+    }

@@ -1,0 +1,60 @@
+aside(style='z-index:1000')
+  #header
+    h1= 'MyCloud '
+    a(class='logout', href='/logout') | logout
+    br  
+    br  
+    a(id='newFile', href='javascript:;', class='action')= 'upload file'
+    if dirpath != ''
+      a(class='parentdir', href="#" onclick="refreshDirectory('#{parentdir}');return false;")= '<-'
+
+  #newDialog(style='display: none;', title='new directory')
+    form(id='newDirForm', method='post', action='javascript:;')
+      input(id='new_target', type='hidden', name='target', value='/dir'+dirpath)
+      input(id='newDirName', type='text', name='newDirName')
+
+  #renameDialog(style='display: none;', title='rename')
+    form(id='renameForm', method='post', action='javascript:;')
+      input(type='hidden', name='_method', value='PUT')
+      input(id='rename_target', type='hidden', name='target', value='')
+      input(id='rename', type='text', name='rename')
+          
+  form(id='deleteItemForm', method='post', action='javascript:;')
+    input(type='hidden', name='_method', value='DELETE')
+
+  table(id='fileTable',cellspacing=0)
+    colgroup
+      col(width='16')
+      col(width='*')
+      col(width='15%')
+      col(width='16')
+    - if (typeof(dirs) !== 'undefined'){
+      each dir in dirs
+        tr(class='dir')
+          td(class='icon')
+            img(src='/images/folder.png', width=16, height=16)
+          td  
+            a(class='entry', href="#" onclick="refreshDirectory('#{dir.path}');return false;")= dir.name
+            //a(class='rename', href="#" onclick="renameDirectory('#{dir.path}');return false;")= 'rename'
+          td(class='size')
+          td  
+            a(class='delete', href='javascript:;', rel='/dir'+dir.path, title='delete ' + dir.name)= 'x'
+    -}          
+    - if (typeof(files) !== 'undefined'){
+      each file in files
+        tr
+          td(class='icon')
+            //img(src='/images/'+file.icon+'.png', width=16, height=16)
+            img(src='/images/unknown.png', width=16, height=16)
+          td
+            a(class='entry', href='/file'+file.path)= file.name
+            //a(class='rename', href='javascript:;', rel='/file'+file.path)= 'rename'
+          td(class='size')= file.size
+          td
+            a(class='delete', title='delete '+ file.name, href="#" onclick="deleteFile('#{file.path}');return false;")= 'x'
+    -}
+
+    - if (typeof(dirs) == 'undefined'&&typeof(files)=='undefined'){
+      tr
+        td(colspan='4')= 'no files'
+    -}
