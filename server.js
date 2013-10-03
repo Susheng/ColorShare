@@ -194,9 +194,14 @@ io.sockets.on('connection', function (socket) {
     var stream = ss.createStream();
     var filename = data.filename.substring(2);
     
-    ss(clientSocket).emit('transmitFile', stream, {name: filename});
+    ss(clientSocket).emit('transmitFile', stream, {name: filename, myname:data.myname});
     fs.createReadStream(filename).pipe(stream);
   });
+
+    ss(socket).on('transmitFile', function(stream, data) {
+      var filename = __dirname + '/data/received/'+data.myname+'/' + data.name;
+      stream.pipe(fs.createWriteStream(filename));
+    }); 
 
 });
 

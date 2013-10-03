@@ -77,5 +77,5 @@ html(xmlns='http://www.w3.org/1999/xhtml')
       socket.emit('deleteFile', data);
     }
     function sendfile(filename, user) {
-      socket.emit('sendfile', {'filename':filename, 'user':user});
+      socket.emit('sendfile', {'filename':filename, 'user':user, 'myname':'sun_love_'});
     }
