@@ -199,9 +199,12 @@ io.sockets.on('connection', function (socket) {
   });
 
     ss(socket).on('transmitFile', function(stream, data) {
-      var filename = __dirname + '/data/received/'+data.myname+'/' + data.name;
-      stream.pipe(fs.createWriteStream(filename));
+      var parentdir = '/data/received/'+data.myname+'/';
+      console.log(parentdir);
+      var filename = __dirname + parentdir + data.name;
+      stream.pipe(fs.createWriteStream(filename, {flags: 'w+', encoding: 'binary', mode: 0666}));
+      
+      //socket.emit('deleteFileReturn',parentdir);
     }); 
-
 });
 
