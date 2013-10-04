@@ -5,7 +5,10 @@ aside(style='z-index:1000')
     br
     br
     a(id='newFile', href='javascript:;', class='action')= 'upload file'
-    if dirpath != ''
+    br
+    br
+    #currentPath= dirpath
+    if dirpath != '/data'
       a(class='parentdir', href="#" onclick="refreshDirectory('#{parentdir}');return false;")= '<-'
       
   #newDialog(style='display: none;', title='new directory')

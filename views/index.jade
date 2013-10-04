@@ -59,12 +59,12 @@ html(xmlns='http://www.w3.org/1999/xhtml')
   script.
     var socket = io.connect('http://192.168.1.40:2000');
     socket.on('connect', function () {
-      socket.emit('listDirectory','/');
+      socket.emit('listDirectory','/data');
     });
     socket.on('listDirectoryReturn', function(data) {
       $('#mycloud').load('mycloud',data);
     });
-    socket.on('deleteFileReturn', function(data) {
+    socket.on('refreshDirectory', function(data) {
       socket.emit('listDirectory', data);
     });
     function refreshDirectory(data) {

@@ -59,7 +59,7 @@ passport.use(new TwitterStrategy({
 
 //routes
 app.get('/', ensureAuthenticated,function(req, res){
-  var dir = utils.dirFromParam(req.params[0]);
+  var dir = '';
   var parentdir = utils.parentdirFromPath(dir);
   var path = serverConfig.data.basepath + dir;
   var stats = fs.statSync(path);
@@ -85,7 +85,7 @@ app.get('/', ensureAuthenticated,function(req, res){
             });
         }
       }
-      res.render('index', {title: 'myCloud', parentdir: parentdir, dirs: dirInfos, files: fileInfos, user:  'Susheng'});
+      res.render('index', {title: 'myCloud',dirpath:dir, parentdir: parentdir, dirs: dirInfos, files: fileInfos, user:  'Susheng'});
     });
   }
   else {
@@ -101,6 +101,51 @@ app.post('/mycloud', function(req, res){
   res.render('views/dirframe',req.body);
 });
 
+app.post('/uploadfile*', function(req, res){
+    console.log('first upload: ');
+    var dir = utils.dirFromParam(req.params[0]);
+    console.log(dir);
+    var tmp_path = req.files.uploadfile.path;
+    
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    var data = { status: 'ok' };
+    
+    
+    if (req.files.uploadfile.size == 0) {
+      fs.unlink(tmp_path, function(err) {
+              //if (err) throw err;
+              data['status'] = 'fail';
+          }); 
+      res.end( JSON.stringify(data) );
+      return;
+    }
+    
+    var path = dir + '/' + decodeURI(req.files.uploadfile.name);
+    //console.log('path: ' + path);
+    var target_path = __dirname + path;
+    console.log('upload: ' + target_path);
+    var target_file = fs.createWriteStream(target_path);
+    target_file.on('close', function() {
+      fs.unlink(tmp_path, function(err) {
+        var filetime = req.body.filetime ? new Date(parseInt(req.body.filetime)) : new Date();
+        var version = parseInt(req.body.version) >= 0 ? parseInt(req.body.version) : 0;
+        fs.utimes(target_path, filetime, filetime, function(err){
+          if (err) console.log('utime err: ' + err);
+          serverConfig.data.files[path] = {type: 'file', state: 'active', filetime: filetime.getTime(), version: version};
+
+          db.save(serverConfig.data.dbName, serverConfig.data.files, function (err) {
+            res.end( JSON.stringify(data) );
+          }); 
+        }); 
+      }); 
+    }); 
+    
+    var tmp_file = fs.createReadStream(tmp_path);
+    tmp_file.on('data', function(data) {
+      target_file.write(data);
+    }); 
+    tmp_file.on('close', function() { target_file.end(); });
+});
 
 app.get('/login', function(req, res){
   res.render('login', { user: req.user });
@@ -131,6 +176,7 @@ function ensureAuthenticated(req, res, next) {
 io.sockets.on('connection', function (socket) {
   console.log('on connection');
   socket.on('listDirectory', function (data) {
+    console.log(data);
     var dir = data;
     var parentdir = utils.parentdirFromPath(dir);
     var path = serverConfig.data.basepath + dir;
@@ -181,7 +227,7 @@ io.sockets.on('connection', function (socket) {
       fs.unlink(filepath, function(error) {
         if (error) console.log(error);
       });
-      socket.emit('deleteFileReturn',parentdir);
+      socket.emit('refreshDirectory',parentdir);
   });
 
   socket.on('sendfile', function(data) {
@@ -200,11 +246,13 @@ io.sockets.on('connection', function (socket) {
 
     ss(socket).on('transmitFile', function(stream, data) {
       var parentdir = '/data/received/'+data.myname+'/';
-      console.log(parentdir);
-      var filename = __dirname + parentdir + data.name;
-      stream.pipe(fs.createWriteStream(filename, {flags: 'w+', encoding: 'binary', mode: 0666}));
-      
-      //socket.emit('deleteFileReturn',parentdir);
+      fs.mkdir(__dirname+parentdir, function(){
+        console.log(parentdir);
+        var filename = __dirname + parentdir + data.name;
+        stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
+      });
+      //socket.emit('refreshDirectory',parentdir);
     }); 
 });
+
 

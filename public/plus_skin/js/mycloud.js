@@ -14,4 +14,17 @@ $(document).ready(function(){
         sendfile($(ui.draggable).attr('name'), 'technicolor');
       }
     });
+  var ajaxUpload = new AjaxUpload('newFile', {
+    action: '/uploadfile',
+    name: 'uploadfile',
+    multiple: true,
+    onSubmit : function(file, ext){
+      console.log('Upload on Submit.');
+      ajaxUpload._settings['action'] = '/uploadfile' + $('#currentPath').text();
+    },  
+    onComplete: function(file, response){
+      console.log('Upload completed.');
+      refreshDirectory($('#currentPath').text());
+    }   
+  }); 
 });
