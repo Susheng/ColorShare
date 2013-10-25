@@ -11,7 +11,8 @@ $(document).ready(function(){
       drop: function( event, ui ) {
         //console.log($(ui.draggable).attr('name'));
         //begin to transfer file.
-        sendfile($(ui.draggable).attr('name'), 'technicolor');
+        if($(ui.draggable).prop("tagName")=="TR")
+          shareFile($(ui.draggable).attr('name'),$(this).parent().attr('id'));
       }
     });
   var ajaxUpload = new AjaxUpload('newFile', {

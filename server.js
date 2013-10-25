@@ -7,11 +7,26 @@ var io = require('socket.io').listen(server, { log: false });
 var fs = require('fs');
 var utils = require('./mycloud/lib/utils.js');
 var dir_info = require('./mycloud/lib/dir_info.js');
-var db = require('./mycloud/lib/db.js');
-var serverConfig = require('./mycloud/serverConfig.js');
+var config = require('./config.js');
 var ss = require('socket.io-stream');
 var ioc = require('socket.io-client');
+var crypto = require('crypto');
+var os=require('os');
+var db=require('./mongodb.js');
+var async = require('async');
+var transmission = require('./transmission.js');
 
+//get self ip address, save into variable ipaddr
+var ipaddr = '';
+var ifaces=os.networkInterfaces();
+for (var dev in ifaces) {
+  ifaces[dev].forEach(function(details){
+    if (details.family=='IPv4') {
+      console.log(details.address);
+      ipaddr = details.address;
+    }
+  });
+}
 
 var TWITTER_CONSUMER_KEY = "l2QMed6qvZSA9EbVymRMgw";
 var TWITTER_CONSUMER_SECRET = "73jCYWrZ1CTQl8WoPoX2YvWFrH6NK2axzH5LSVOVIM";
@@ -39,6 +54,7 @@ app.use(express.static(__dirname + '/public'));
 server.listen(2000);
 console.log('App started on port 2000');
 
+
 passport.use(new TwitterStrategy({
     consumerKey: TWITTER_CONSUMER_KEY,
     consumerSecret: TWITTER_CONSUMER_SECRET,
@@ -59,9 +75,16 @@ passport.use(new TwitterStrategy({
 
 //routes
 app.get('/', ensureAuthenticated,function(req, res){
-  var dir = '';
+  //encrypt contact string.
+  var encryptString = ipaddr+' '+req.user.id+' '+req.user.username+' '+req.user.photos[0].value;
+  var cipher = crypto.createCipher('aes256','technicolor@ColorShare');
+  var encrypted = cipher.update(encryptString, 'utf8', 'hex') + cipher.final('hex');
+
+
+  //initial mycloud
+  var dir = '/data';
   var parentdir = utils.parentdirFromPath(dir);
-  var path = serverConfig.data.basepath + dir;
+  var path = __dirname + dir;
   var stats = fs.statSync(path);
   if (stats.isDirectory()) {
     var data = new Object();
@@ -85,11 +108,29 @@ app.get('/', ensureAuthenticated,function(req, res){
             });
         }
       }
-      res.render('index', {title: 'myCloud',dirpath:dir, parentdir: parentdir, dirs: dirInfos, files: fileInfos, user:  'Susheng'});
+    async.parallel({
+        contacts: function(callback){
+          db.find('contacts',{id:req.user.id},{contacts:1},function(contacts){
+            db.find('localusers',{id:{$in:contacts[0].contacts}},{},function(data){
+              callback(null,data);
+            });
+          });
+        },
+        groups: function(callback){
+          db.find('groups',{owner:req.user.id},{},function(data){
+            callback(null,data);
+          }); 
+        }
+    },
+    function(err, results) {
+        // results is now equals to: {one: 1, two: 2}
+        var data = {contacts:results.contacts,groups:results.groups, title: 'myCloud',dirpath:dir, parentdir: parentdir, dirs: dirInfos, files: fileInfos, user:req.user.username, userid:req.user.id, code:encrypted, serverip:config.data.serverip};
+        //console.log(data);
+        res.render('index', data);
     });
-  }
-  else {
-    res.download(path, dir);
+    //read contact and group information from DATABASE
+    //console.log(db.find('contacts',{id:req.user.id}));
+    });
   }
 });
 
@@ -100,6 +141,12 @@ app.get('/account', ensureAuthenticated,function(req, res){
 app.post('/mycloud', function(req, res){
   res.render('views/dirframe',req.body);
 });
+
+app.post('/invite', ensureAuthenticated,function(req, res){
+  console.log(req.body.email);
+  console.log(req.body.code);
+});
+
 
 app.post('/uploadfile*', function(req, res){
     console.log('first upload: ');
@@ -131,11 +178,6 @@ app.post('/uploadfile*', function(req, res){
         var version = parseInt(req.body.version) >= 0 ? parseInt(req.body.version) : 0;
         fs.utimes(target_path, filetime, filetime, function(err){
           if (err) console.log('utime err: ' + err);
-          serverConfig.data.files[path] = {type: 'file', state: 'active', filetime: filetime.getTime(), version: version};
-
-          db.save(serverConfig.data.dbName, serverConfig.data.files, function (err) {
-            res.end( JSON.stringify(data) );
-          }); 
         }); 
       }); 
     }); 
@@ -145,6 +187,15 @@ app.post('/uploadfile*', function(req, res){
       target_file.write(data);
     }); 
     tmp_file.on('close', function() { target_file.end(); });
+});
+
+app.get('/file*', function(req, res){
+  var dir = utils.dirFromParam(req.params[0]);
+  var parentdir = utils.parentdirFromPath(dir);
+  var path = __dirname + dir;
+  console.log(path);
+  console.log(dir);
+  res.download(path);
 });
 
 app.get('/login', function(req, res){
@@ -163,6 +214,7 @@ app.get('/auth/twitter/callback',
   passport.authenticate('twitter', { failureRedirect: '/login' }),
   function(req, res) {
     // Successful authentication, redirect home.
+    db.update('localusers',{id:req.user.id},req.user);
     res.redirect('/');
   });
 
@@ -172,14 +224,14 @@ function ensureAuthenticated(req, res, next) {
   res.redirect('/login')
 }
 
-
+/**************************socket.io***************************************/
 io.sockets.on('connection', function (socket) {
   console.log('on connection');
+
   socket.on('listDirectory', function (data) {
-    console.log(data);
     var dir = data;
     var parentdir = utils.parentdirFromPath(dir);
-    var path = serverConfig.data.basepath + dir;
+    var path = __dirname + dir;
     var stats = fs.statSync(path);
     if (stats.isDirectory()) {
       var data = new Object();
@@ -208,11 +260,21 @@ io.sockets.on('connection', function (socket) {
     }
   });
 
+  socket.on('addcontact', function(data){
+    //check validity
+    var decipher = crypto.createDecipher('aes256','technicolor@ColorShare');
+    var decrypted = decipher.update(data.code, 'hex', 'utf8') + decipher.final('utf8');
+    console.log(decrypted);
+    var pieces = decrypted.split(" ");
+    db.update('externalusers',{id:pieces[1]},{ip:pieces[0],id:pieces[1],username:pieces[2],photo:pieces[3]});
+    db.updateAdd('contacts', {id:data.userid}, pieces[1]);
+  });
+
   socket.on('renameDirectory', function(data) {
     var dir = data;
     var parentdir = utils.parentdirFromPath(dir);
-    var oldpath = serverConfig.data.basepath + dir;
-    var newpath = serverConfig.data.basepath + parentdir + '/' + req.body.rename;
+    var oldpath = __dirname + dir;
+    var newpath =  __dirname + parentdir + '/' + req.body.rename;
     fs.rename(oldpath, newpath, function (err) {
       res.writeHead(200, {'Content-Type': 'text/plain'});
       res.end('ok');
@@ -221,7 +283,7 @@ io.sockets.on('connection', function (socket) {
   
   socket.on('deleteFile', function(data) {
       var path = data;
-      var filepath = serverConfig.data.basepath + path;
+      var filepath = __dirname + path;
       var parentdir = utils.parentdirFromPath(path);
       console.log(new Date().getTime() + ': delete ' + filepath);
       fs.unlink(filepath, function(error) {
@@ -229,6 +291,7 @@ io.sockets.on('connection', function (socket) {
       });
       socket.emit('refreshDirectory',parentdir);
   });
+
 
   socket.on('sendfile', function(data) {
     console.log(data);
@@ -238,20 +301,51 @@ io.sockets.on('connection', function (socket) {
     //Step3. send streamming files
     var clientSocket = ioc.connect('http://192.168.1.37:2000');
     var stream = ss.createStream();
-    var filename = data.filename.substring(2);
+    var filename = data.filename.substring(1);
+    var pieces = filename.split("/");
+    var displayname = pieces[pieces.length-1];
     
-    ss(clientSocket).emit('transmitFile', stream, {name: filename, myname:data.myname});
+    ss(clientSocket).emit('transmitFile', stream, {name: displayname, myname:data.myname});
     fs.createReadStream(filename).pipe(stream);
   });
+
+  socket.on('shareFile', function(data){
+    console.log(data);
+    //create .torrent and seed it.
+    crypto.randomBytes(8, function(ex, buf) {
+      var filename = buf.toString('hex')+'.torrent';
+      var torrentfile = __dirname+'/torrent/'+filename;
+      transmission.createTorrent(__dirname+data.dir, 1000, torrentfile, config.data.tracker,transmission.seedTorrent);
+      transmission.seedTorrent(torrentfile, __dirname+data.path);
+
+      //let's send it by websocket.
+      db.find('groups', {groupname:data.group},{},function(datamember){
+        for(var member in datamember[0].members){
+          var memid = datamember[0].members[member];
+          db.find('externalusers', {id:memid}, {}, function(dataip){
+            console.log(dataip[0].ip);
+            //get the ip address
+            var clientSocket = ioc.connect(dataip[0].ip+':2000');
+            var stream = ss.createStream();
+            ss(clientSocket).emit('transmitTorrent', stream, {name: filename, myname:data.user});
+            fs.createReadStream(filename).pipe(stream);
+          });
+        }
+      });
+    });
+  });
+    ss(socket).on('transmitTorrent', function(stream, data) {
+      var parentdir = '/torrent/';
+      var filename = __dirname + parentdir + data.filename;
+      stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
+    }); 
 
     ss(socket).on('transmitFile', function(stream, data) {
       var parentdir = '/data/received/'+data.myname+'/';
       fs.mkdir(__dirname+parentdir, function(){
-        console.log(parentdir);
         var filename = __dirname + parentdir + data.name;
         stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
       });
-      //socket.emit('refreshDirectory',parentdir);
     }); 
 });
 

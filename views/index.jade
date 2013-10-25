@@ -6,6 +6,22 @@ html(xmlns='http://www.w3.org/1999/xhtml')
     link(rel='stylesheet', href='/stylesheets/style.css')
     link(rel='stylesheet', href='/smoothness/jquery-ui-1.8.20.custom.css');
   body
+    #contactForm(style='display: none')
+      br
+      br
+      form(name='contact', action='/invite', method='post', onsubmit='return unblockUI()')
+        | E-mail:  
+        input(type='text', name='email')
+        input(type="hidden" name="code" value=code) 
+        input(type='submit', value='Invite',style='margin-left:80px') 
+      br
+      br
+      div
+        | code:  
+        input(type='text', name='code',id='contactcode')
+        input(type='submit', value='Add',style='margin-left:80px', id='addcontact')
+      br
+      br
     input#sideToggle(type='checkbox')
     #mycloud
       include views/direntries
@@ -17,15 +33,17 @@ html(xmlns='http://www.w3.org/1999/xhtml')
     #plus
       a#p_m_sa.p_bt(href='#') Sellect/Deselect ALL
       a#p_clear.p_bt(href='javascript:;') Clear groups
+      a#p_contact.p_bt(href='#') Add contact
       #p_m_b
-        .p_m_i_b
-          .p_m(name='m_1')
-            img(src='plus_img/test_face1.png', small='plus_img/small_test_face1.png')
-            span.p_m_n JIA GUO
-            .c
-            span.p_m_t
-            .p_m_hs
-          .c
+        - each contact in contacts
+          .p_m_i_b
+            .p_m(name='m_'+contact.id)
+              img(src=contact.photos[0].value, small='plus_img/small_test_face1.png')
+              span.p_m_n= contact.username
+              .c
+              span.p_m_t
+              .p_m_hs
+         .c
       input#p_m_hi(type='text', value='', style='')
       .p_m_line
         .p_m_tips Drag your contacts to the following circles and create new groups.
@@ -35,31 +53,42 @@ html(xmlns='http://www.w3.org/1999/xhtml')
           .p_c_c_box(style='display: none;')
           .p_c_c.n_p_c_c Create new group
           .p_c_hs
-        #c_1.p_c
-          img.p_c_img(src='plus_skin/img/normal_cycle_bg.jpg')
-          .p_c_c_box(style='display: none;')
-          .p_c_c
-            | Group name
-            br
-            span.p_c_c_num 0
-          .p_c_hs
+        - each group in groups
+          div.p_c(id=group.groupname)
+            img.p_c_img(src='plus_skin/img/normal_cycle_bg.jpg')
+            .p_c_c_box(style='display: none;')
+            .p_c_c
+              =group.groupname 
+              br
+              span.p_c_c_num= group.members.length
+            .p_c_hs
+              - each member in group.members
+                #members(class="s_p_b_p ui-draggable" style="top: 9.317043812343357px; left: 92.5996950669714px; display: none;" name='m_'+member, isfinshed="true")
+                  img(src='plus_img/small_test_face1.png')
         .c
   script(language='javascript', src='http://code.jquery.com/jquery-1.10.2.min.js')
   script(language='javascript', src='http://code.jquery.com/ui/1.10.3/jquery-ui.js')
   script(language='javascript', src='./plus_skin/js/plus.js')
   script(language='javascript', src='./plus_skin/js/mycloud.js')
+  script(language='javascript', src='http://malsup.github.io/jquery.blockUI.js')
   script(type='application/javascript', src='/mycloud/js/ajaxupload.js')
   script(src='/socket.io/socket.io.js')
 
   script.
+    var globalGroup = '!{JSON.stringify(groups)}';
+    console.log(globalGroup);
+    $('#p_contact').click(function(){
+        $.blockUI({ message: $('#contactForm')  }); 
+        $('.blockOverlay').attr('title','Click to unblock').click($.unblockUI); 
+    });
     $('#p_m_b').plus_member();
     $('#p_clear').click(function(){
     location.reload()
     })
   script.
-    var socket = io.connect('http://192.168.1.40:2000');
+    var socket = io.connect('#{serverip}');
     socket.on('connect', function () {
-      socket.emit('listDirectory','/data');
+      //socket.emit('listDirectory','/data');
     });
     socket.on('listDirectoryReturn', function(data) {
       $('#mycloud').load('mycloud',data);
@@ -79,3 +108,27 @@ html(xmlns='http://www.w3.org/1999/xhtml')
     function sendfile(filename, user) {
       socket.emit('sendfile', {'filename':filename, 'user':user, 'myname':'sun_love_'});
     }
+    function shareFile(dir, group) {
+      socket.emit('shareFile', {'user':'#{user}','dir':dir,'group':group, 'path':'#{dirpath}'});
+    }
+    function unblockUI(){
+      //email validity check
+      var re = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+      var input=document.forms["contact"]["email"].value;
+      if(re.test(input)){
+        $.unblockUI();
+        return true;
+      } else {
+        return false;
+      }
+    }
+    function addcontact(){
+      //var input=document.forms["addcontact"]["code"].value;  
+      alert('block');
+      $.unblockUI();
+    }
+    $('#addcontact').click(function(){
+      console.log($('#contactcode').val());
+      socket.emit('addcontact', {userid:"#{userid}",code:$('#contactcode').val()});
+      $.unblockUI();
+    });

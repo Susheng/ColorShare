@@ -49,6 +49,24 @@ var cy = {
 		c_go_que:0  //当前画圈动画"前面"已经有几个圈在活动了
 	};
 	 
+  //load existed members of the group
+  var groupjson = jQuery.parseJSON(globalGroup);
+  for(var index in groupjson){
+    var onegroup = groupjson[index];
+    console.log(onegroup);
+    for(var one in onegroup.members){
+      var member = {name:'m_'+onegroup.members[one], s_pic:"plus_img/small_test_face1.png"};
+      if(typeof cy_member['c_'+onegroup.groupname] === 'undefined'){//如果不存在cy_member，则创建他，
+          cy_member['c_'+onegroup.groupname] = [];
+      }	
+      cy_member['c_'+onegroup.groupname].push(member);
+    }
+  }
+  
+      console.log(cy_member);
+
+
+
   m_l.hs = function(that, type){  //绑定HOVER和CLICK效果，type === 1是OVER，2是OUT,3是CLICK
   			var that = that.parent();
 			switch(type){
@@ -210,10 +228,12 @@ var cy = {
 		 	var str= '',
 				pm,
 				is_f_array = cy_member[m_l.is_on_c_id],
+        
 				addnum=0, //计数器，记录有几个增加有效用户
 				no_repeat = true;
+        console.log(m_l.is_on_c_id);
 				var i_num = m_l.putarray.length;
-        console.log(i_num);
+        console.log(is_f_array);
 		 		for(var i=0;i<i_num;i++){
 					pm = m_l.putarray[i];
 					no_repeat = true;
@@ -226,12 +246,19 @@ var cy = {
 					if(no_repeat){	//如果没有发现重复		
 					 is_f_array.push(pm);
 					 addnum++;
-					 	if(i <= cy.p_c_max){//每次只输出12个转，多余的塞入数组，不转
-								str += '<div class="'+cy.p_c_s_p_cl+' '+cy.p_c_s_p_p_cl+'" style="display:none;" name="'+pm.name+'"><img src="'+pm.s_pic+'" /></div>';
+				 	if(i <= cy.p_c_max){//每次只输出12个转，多余的塞入数组，不转
+								str += '<div id="members" class="'+cy.p_c_s_p_cl+' '+cy.p_c_s_p_p_cl+'" style="display:none;" name="'+pm.name+'"><img src="'+pm.s_pic+'" /></div>';
 						}
 					}
 				}
 			$('#'+m_l.is_on_c_id).children('.p_c_hs').append(str);
+      //add draggable
+      $('#members').draggable({
+          cursor: 'hand',
+          helper: 'clone',
+          stop: function(event, ui) {
+          }
+        });
 			return  {
 					true_num : addnum,//真实加入的数量
 					put_num : $('#'+m_l.is_on_c_id).find('.'+cy.p_c_s_p_cl).length //实际放入的数量，只有放入超过12个2值才会不同
@@ -360,6 +387,7 @@ var cy = {
 							i = 0,
 							s_p_o = that.find('.'+cy.p_c_s_p_cl),
 							s_p_put_num = s_p_num.put_num;
+              console.log(s_p_num);
 							if(s_p_put_num !==0){//如果有新用户提交进来
 								cy.c_go_que = that.find('.'+cy.p_c_s_p_p_cl+'[isfinshed="true"]').length;		
 							  if(cy.c_go_que != 0 && (cy.c_go_que === cy.p_c_max || cy.c_go_que + s_p_put_num > cy.p_c_max)){ 
