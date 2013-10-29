@@ -76,6 +76,7 @@ html(xmlns='http://www.w3.org/1999/xhtml')
 
   script.
     var globalGroup = '!{JSON.stringify(groups)}';
+    var currentpath = 'data';
     console.log(globalGroup);
     $('#p_contact').click(function(){
         $.blockUI({ message: $('#contactForm')  }); 
@@ -92,6 +93,8 @@ html(xmlns='http://www.w3.org/1999/xhtml')
     });
     socket.on('listDirectoryReturn', function(data) {
       $('#mycloud').load('mycloud',data);
+      currentpath = data.dirpath;
+      //console.log(data);
     });
     socket.on('refreshDirectory', function(data) {
       socket.emit('listDirectory', data);
@@ -109,7 +112,7 @@ html(xmlns='http://www.w3.org/1999/xhtml')
       socket.emit('sendfile', {'filename':filename, 'user':user, 'myname':'sun_love_'});
     }
     function shareFile(dir, group) {
-      socket.emit('shareFile', {'user':'#{user}','dir':dir,'group':group, 'path':'#{dirpath}'});
+      socket.emit('shareFile', {'user':'#{user}','dir':dir,'group':group, 'path':currentpath});
     }
     function unblockUI(){
       //email validity check

@@ -339,7 +339,10 @@ io.sockets.on('connection', function (socket) {
       var filename = __dirname + parentdir + data.name;
       stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
       //start downloading...
-      transmission.seedTorrent(filename, __dirname+'/data/');
+      stream.on('end', function(){
+          console.log('Streaming begins.');
+          transmission.seedTorrent(filename, __dirname+'/data/');
+      });
     }); 
 
     ss(socket).on('transmitFile', function(stream, data) {
