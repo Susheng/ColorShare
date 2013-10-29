@@ -39,7 +39,7 @@ exports.listDirEntries = function(req, res){
 						});
 				}
 			}
-			res.render('direntries', { title: 'myCloud', dirpath: dir, parentdir: parentdir, dirs: dirInfos, files: fileInfos, user: req.user.name });
+			res.render('direntries', { title: 'myCloud', dirpath: dir, parentdir: parentdir, dirs: dirInfos, files: fileInfos, user:  'Susheng'});
 		});
 	}
 	else {
@@ -90,7 +90,7 @@ exports.downloadFile = function(req, res){
 	var parentdir = utils.parentdirFromPath(dir);
   
 	var path = serverConfig.data.basepath + dir;
-	res.download(path, dir);
+	res.download(path);
 };
 
 exports.formUploadData = function(req, res) {

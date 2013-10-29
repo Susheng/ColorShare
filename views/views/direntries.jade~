@@ -3,9 +3,11 @@ aside(style='z-index:1000')
     h1= 'MyCloud '
     a(class='logout', href='/logout') | logout
     br
-    br
     a(id='newFile', href='javascript:;', class='action')= 'upload file'
-    if dirpath != ''
+    br
+    br
+    #currentPath= dirpath
+    if dirpath != '/data'
       a(class='parentdir', href="#" onclick="refreshDirectory('#{parentdir}');return false;")= '<-'
       
   #newDialog(style='display: none;', title='new directory')
@@ -30,7 +32,7 @@ aside(style='z-index:1000')
       col(width='16')
     - if (typeof(dirs) !== 'undefined'){
       each dir in dirs
-        tr(class='dragdir')
+        tr(class='dragdir', name=dir.path)
           td(class='icon')
             img(src='/images/folder.png', width=16, height=16)
           td
