@@ -62,8 +62,14 @@ html(xmlns='http://www.w3.org/1999/xhtml')
               br
               span.p_c_c_num= group.members.length
             .p_c_hs
+              - var num=0;
               - each member in group.members
-                #members(class="s_p_b_p ui-draggable" style="top: 9.317043812343357px; left: 92.5996950669714px; display: none;" name='m_'+member, isfinshed="true")
+                -var angle = 90-num*30;
+                -num = num+1;
+                -var car = (2*Math.PI/360)*angle;
+                -var x = 75 -Math.sin(car)*68;
+                -var y = 75 + Math.cos(car)*68;
+                #members(class="s_p_b_p ui-draggable" style="top:"+x+"px; left:"+y+"px; display: none;" name='m_'+member, isfinshed="true")
                   img(src='plus_img/small_test_face1.png')
         .c
   script(language='javascript', src='http://code.jquery.com/jquery-1.10.2.min.js')
@@ -76,7 +82,7 @@ html(xmlns='http://www.w3.org/1999/xhtml')
 
   script.
     var globalGroup = '!{JSON.stringify(groups)}';
-    var currentpath = 'data';
+    var currentpath = '/data';
     console.log(globalGroup);
     $('#p_contact').click(function(){
         $.blockUI({ message: $('#contactForm')  }); 

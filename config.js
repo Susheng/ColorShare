@@ -4,6 +4,7 @@ exports.data = {
   dbName: 'colorDB',
   fs_event_timeout: 5000,
   files : {},
-  serverip: 'http://192.168.1.54:2000/',
-  tracker: 'http://192.168.1.54:11235/tracker/announce'
+  chunksize: 30,
+  serverip: 'http://192.168.1.58:2000/',
+  tracker: 'http://192.168.1.58:11235/tracker/announce'
 }

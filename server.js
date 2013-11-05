@@ -5,6 +5,7 @@ var TwitterStrategy = require('passport-twitter').Strategy;
 var server = require('http').createServer(app);
 var io = require('socket.io').listen(server, { log: false });
 var fs = require('fs');
+var path=require('path');
 var utils = require('./mycloud/lib/utils.js');
 var dir_info = require('./mycloud/lib/dir_info.js');
 var config = require('./config.js');
@@ -15,6 +16,7 @@ var os=require('os');
 var db=require('./mongodb.js');
 var async = require('async');
 var transmission = require('./transmission.js');
+var sm=require('./splitmerge.js');
 
 //get self ip address, save into variable ipaddr
 var ipaddr = '';
@@ -227,6 +229,9 @@ function ensureAuthenticated(req, res, next) {
 /**************************socket.io***************************************/
 io.sockets.on('connection', function (socket) {
   console.log('on connection');
+  socket.on('disconnect', function(){
+    console.log('disconnect');
+  });
 
   socket.on('listDirectory', function (data) {
     var dir = data;
@@ -292,6 +297,10 @@ io.sockets.on('connection', function (socket) {
       socket.emit('refreshDirectory',parentdir);
   });
 
+  socket.on('disconnect', function(){
+    console.log('disconnect');
+  });
+
 
   socket.on('sendfile', function(data) {
     console.log(data);
@@ -311,28 +320,29 @@ io.sockets.on('connection', function (socket) {
 
   socket.on('shareFile', function(data){
     console.log(data);
-    //create .torrent and seed it.
-    crypto.randomBytes(8, function(ex, buf) {
-      var filename = buf.toString('hex')+'.torrent';
-      var torrentfile = __dirname+'/torrent/'+filename;
-      transmission.createTorrent(__dirname+data.dir, 100, torrentfile, config.data.tracker,transmission.seedTorrent);
-      transmission.seedTorrent(torrentfile, __dirname+data.path);
-
-      //let's send it by websocket.
-      db.find('groups', {groupname:data.group},{},function(datamember){
-        for(var member in datamember[0].members){
-          var memid = datamember[0].members[member];
-          db.find('externalusers', {id:memid}, {}, function(dataip){
-            console.log(dataip[0].ip);
-            //get the ip address
-            var clientSocket = ioc.connect(dataip[0].ip+':2000');
-            var stream = ss.createStream();
-            ss(clientSocket).emit('transmitTorrent', stream, {name: filename, myname:data.user});
-            fs.createReadStream(torrentfile).pipe(stream);
-          });
-        }
+    var filepath = __dirname+data.dir;
+    var parentpath = __dirname+data.path;
+    var filename = path.basename(filepath);
+    var stats = fs.statSync(filepath);
+    var fileSizeInBytes = stats["size"];
+    var fileSizeInMegabytes = fileSizeInBytes / 1000000.0;
+    //decide split into how many pieces
+    if(fileSizeInMegabytes>config.data.chunksize){
+      //it represents that the file should be splited into pieces for delivering.
+      sm.split(config.data.chunksize,filepath,__dirname+'/tempdata/'+filename+'.');
+      //CreateSeedSendTorrent(filepath,parentpath,data.group,data.user);
+      fs.readdir(__dirname+'/tempdata/', function(err, files) {
+        console.log(files);
+         files.filter(function(file) {
+           return file.substr(0,file.lastIndexOf('.'))==filename 
+         }).forEach(function(file) {
+              console.log(file);
+              CreateSeedSendTorrent(__dirname+'/tempdata/'+file,__dirname+'/tempdata/',data.group,data.user,true);
+            });
       });
-    });
+    } else {
+      CreateSeedSendTorrent(filepath,parentpath,data.group,data.user,false);
+    }
   });
     ss(socket).on('transmitTorrent', function(stream, data) {
       var parentdir = '/torrent/';
@@ -341,10 +351,15 @@ io.sockets.on('connection', function (socket) {
       //start downloading...
       stream.on('end', function(){
           console.log('Streaming begins.');
-          transmission.seedTorrent(filename, __dirname+'/data/');
+          socket.disconnect();
+          if(data.split){
+            transmission.seedTorrent(filename, __dirname+'/data/');
+          }else{
+            transmission.seedTorrent(filename, __dirname+'/tempdata/');
+          }
       });
     }); 
-
+    
     ss(socket).on('transmitFile', function(stream, data) {
       var parentdir = '/data/received/'+data.myname+'/';
       fs.mkdir(__dirname+parentdir, function(){
@@ -353,5 +368,38 @@ io.sockets.on('connection', function (socket) {
       });
     }); 
 });
+
+function CreateSeedSendTorrent(filename,seedpath,group,myname,split){
+  //__dirname+data.path
+  //create .torrent and seed it.
+  crypto.randomBytes(8, function(ex, buf) {
+    var torrentname = buf.toString('hex')+'.torrent';
+    var torrentfile = __dirname+'/torrent/'+torrentname;
+    transmission.createTorrent(filename, 100, torrentfile, config.data.tracker); //here
+    transmission.seedTorrent(torrentfile, seedpath);
+    //let's send it by websocket.
+    db.find('groups', {groupname:group},{},function(datamember){
+      for(var member in datamember[0].members){
+        var memid = datamember[0].members[member];
+        db.find('externalusers', {id:memid}, {}, function(dataip){
+          console.log(dataip[0].ip);
+          //get the ip address
+          var clientSocket = ioc.connect(dataip[0].ip+':2000', { 'connect timeout': 5000 , 'force new connection': true});
+          clientSocket.on('connect',function(){
+            var stream = ss.createStream();
+            ss(clientSocket).emit('transmitTorrent', stream, {name: torrentname, myname:myname, split:split});
+            fs.createReadStream(torrentfile).pipe(stream);
+          });
+          clientSocket.on('connect_failed',function(){
+            console.log('connect_failed: '+dataip[0].ip);
+          });
+          clientSocket.on('disconnect', function(){
+            console.log('disconnected: '+dataip[0].ip);
+          });
+        });
+      }
+    });
+  });
+}
 
 

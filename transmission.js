@@ -6,12 +6,11 @@ var sh = require('execSync');
 
 function puts(error, stdout, stderr) { sys.puts(stdout) }
 
-
-
 var transmission = new Transmission({
         port : 9091,
         host : '127.0.0.1'
 })
+
 function get(id, cb) {
         transmission.get(id, function(err, result) {
                 if (err) {
@@ -75,7 +74,7 @@ function seedTorrent(torrent, dir) {
   })
 }
 
-function createTorrent(dir, piecesize, name, tracker, callback) {
+function createTorrent(dir, piecesize, name, tracker) {
   var code = sh.run('transmission-create'+' -o '+name+' -t '+tracker+' -s '+piecesize+' '+dir);
   console.log(code);
 }
