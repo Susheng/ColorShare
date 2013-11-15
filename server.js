@@ -33,6 +33,10 @@ for (var dev in ifaces) {
 var TWITTER_CONSUMER_KEY = "l2QMed6qvZSA9EbVymRMgw";
 var TWITTER_CONSUMER_SECRET = "73jCYWrZ1CTQl8WoPoX2YvWFrH6NK2axzH5LSVOVIM";
 
+var torrentHash = {};
+var taskTime = {};
+var taskPara = {};
+
 passport.serializeUser(function(user, done) {
   done(null, user);
 });
@@ -113,7 +117,7 @@ app.get('/', ensureAuthenticated,function(req, res){
     async.parallel({
         contacts: function(callback){
           db.find('contacts',{id:req.user.id},{contacts:1},function(contacts){
-            db.find('localusers',{id:{$in:contacts[0].contacts}},{},function(data){
+            db.find('externalusers',{id:{$in:contacts[0].contacts}},{},function(data){
               callback(null,data);
             });
           });
@@ -318,6 +322,10 @@ io.sockets.on('connection', function (socket) {
     fs.createReadStream(filename).pipe(stream);
   });
 
+  socket.on('finish', function(data){
+    console.log(data);
+  });
+
   socket.on('shareFile', function(data){
     console.log(data);
     var filepath = __dirname+data.dir;
@@ -329,37 +337,66 @@ io.sockets.on('connection', function (socket) {
     //decide split into how many pieces
     if(fileSizeInMegabytes>config.data.chunksize){
       //it represents that the file should be splited into pieces for delivering.
+	  //time record
+	  if(!(filename in taskPara)){
+	  	var temphash = {};
+		taskPara[filename] = temphash;
+	  }
+	  var startTime = new Date().getTime();
+	  taskPara[filename]['startTime'] = startTime;
       sm.split(config.data.chunksize,filepath,__dirname+'/tempdata/'+filename+'.');
-      //CreateSeedSendTorrent(filepath,parentpath,data.group,data.user);
+	  var splitTime = new Date().getTime(); 
+	  taskPara[filename]['splitTime'] = splitTime - startTime;
+	  var sizearr = new Array();
       fs.readdir(__dirname+'/tempdata/', function(err, files) {
-        console.log(files);
          files.filter(function(file) {
            return file.substr(0,file.lastIndexOf('.'))==filename 
-         }).forEach(function(file) {
-              console.log(file);
-              CreateSeedSendTorrent(__dirname+'/tempdata/'+file,__dirname+'/tempdata/',data.group,data.user,true);
+         }).forEach(function(file,index,arr) {
+				//save size info into sizearr in taskPara.
+				var stats = fs.statSync(__dirname+'/tempdata/'+file);
+				sizearr[index] = stats["size"] ;
+              	CreateSeedSendTorrent(__dirname+'/tempdata/'+file,__dirname+'/tempdata/',data.group,data.user,true,filename,index,arr.length);
             });
+		taskPara[filename]['sizearr'] = sizearr;
+		console.log(taskPara);
       });
     } else {
       CreateSeedSendTorrent(filepath,parentpath,data.group,data.user,false);
     }
   });
     ss(socket).on('transmitTorrent', function(stream, data) {
+	  //socket.emit('finish', {hello:'world'});
+		var callbackEmit = function(log){
+		  socket.emit('finish', log, data.receivername);
+		}
       var parentdir = '/torrent/';
       var filename = __dirname + parentdir + data.name;
       stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
       //start downloading...
       stream.on('end', function(){
           console.log('Streaming begins.');
-          socket.disconnect();
+          //socket.disconnect();
           if(data.split){
-            transmission.seedTorrent(filename, __dirname+'/data/');
+            if(data.id in torrentHash) {
+                var arr = torrentHash[data.id];
+                arr[data.index] = data;
+            } else {
+                var arr = new Array();
+                arr[data.index]=data;
+                torrentHash[data.id] = arr;
+            }   
+            if(data.index == 0){
+                transmission.seedTorrentSeq(filename, __dirname+'/tempdata/',data.id,data.index,torrentHash,callbackEmit);
+			}else{
+	  			socket.disconnect();
+			}
           }else{
-            transmission.seedTorrent(filename, __dirname+'/tempdata/');
-          }
-      });
+            transmission.seedTorrent(filename, __dirname+'/data/');
+          }   
+      }); 
     }); 
-    
+
+
     ss(socket).on('transmitFile', function(stream, data) {
       var parentdir = '/data/received/'+data.myname+'/';
       fs.mkdir(__dirname+parentdir, function(){
@@ -369,14 +406,15 @@ io.sockets.on('connection', function (socket) {
     }); 
 });
 
-function CreateSeedSendTorrent(filename,seedpath,group,myname,split){
-  //__dirname+data.path
+function CreateSeedSendTorrent(filename,seedpath,group,myname,split,id,index,length){
   //create .torrent and seed it.
   crypto.randomBytes(8, function(ex, buf) {
     var torrentname = buf.toString('hex')+'.torrent';
     var torrentfile = __dirname+'/torrent/'+torrentname;
     transmission.createTorrent(filename, 100, torrentfile, config.data.tracker); //here
+    //here the chunk size
     transmission.seedTorrent(torrentfile, seedpath);
+	taskPara[id]['torrentTime'] = new Date().getTime() - taskPara[id]['startTime'] - taskPara[id]['splitTime'];
     //let's send it by websocket.
     db.find('groups', {groupname:group},{},function(datamember){
       for(var member in datamember[0].members){
@@ -387,8 +425,27 @@ function CreateSeedSendTorrent(filename,seedpath,group,myname,split){
           var clientSocket = ioc.connect(dataip[0].ip+':2000', { 'connect timeout': 5000 , 'force new connection': true});
           clientSocket.on('connect',function(){
             var stream = ss.createStream();
-            ss(clientSocket).emit('transmitTorrent', stream, {name: torrentname, myname:myname, split:split});
+            ss(clientSocket).emit('transmitTorrent', stream, {name: torrentname, myname:myname, receivername:memid, split:split,id:id,index:index,length:length});
             fs.createReadStream(torrentfile).pipe(stream);
+          });
+          clientSocket.on('finish',function(data, userid){
+			  //log information from peers, c'est important.
+			  console.log(userid);
+			  console.log(data);
+			  if(!(data.taskid in taskTime)) {
+				  var tempHash = {};
+				  taskTime[data.taskid] = tempHash;
+			  }
+			  if(!(data.userid in taskTime[data.taskid])) {
+				  var tempArr = new Array();
+				  taskTime[data.taskid][data.userid] = tempArr;
+			  }
+			  taskTime[data.taskid][data.userid][data.index] = new Date().getTime()-taskPara[data.taskid]['startTime'] - taskPara[data.taskid]['splitTime'] - taskPara[data.taskid]['torrentTime']; 
+			  //console.log(taskTime[data.taskid][data.userid][data.index]);
+			  if(data.index+1==data.length) {
+			  	  //write to file
+				  logFinished(data.taskid, taskPara[data.taskid]['sizearr'], taskTime[data.taskid][data.userid], userid,taskPara[data.taskid]['splitTime'], taskPara[data.taskid]['torrentTime']);
+			  }
           });
           clientSocket.on('connect_failed',function(){
             console.log('connect_failed: '+dataip[0].ip);
@@ -402,4 +459,27 @@ function CreateSeedSendTorrent(filename,seedpath,group,myname,split){
   });
 }
 
+function logFinished(logname,sizeArr,timeArr,username,splitTime,torrentTime) {
+	writeToLog(logname,'User ' + username + ' finished downloading file '+logname);
+	writeToLog(logname,'Time consumption in splitting file: '+splitTime);
+	writeToLog(logname,'Time consumption in creating torrents: '+torrentTime);
+	var totalsize = 0;
+	var totaltime = 0;
+	for(var i=0; i<timeArr.length; i++) {
+		var duration = timeArr[i];
+		if(i!=0)
+			duration = timeArr[i] - timeArr[i-1];
+		var str = 'Piece '+ (i+1)+': '+sizeArr[i]+'-----------'+duration;
+		writeToLog(logname,str);
+		totalsize = totalsize + sizeArr[i];
+		totaltime = totaltime + timeArr[i];
+	}
+	var str = 'Total size: '+ totalsize+'------------'+totaltime+'\r\n';
+	writeToLog(logname,str);
+}
 
+function writeToLog(logname, str) {
+	fs.appendFile('log/'+logname, str+'\r\n', function(err) {
+		if (err) throw err;
+	}); 
+}
