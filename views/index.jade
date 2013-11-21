@@ -38,7 +38,7 @@ html(xmlns='http://www.w3.org/1999/xhtml')
         - each contact in contacts
           .p_m_i_b
             .p_m(name='m_'+contact.id)
-              img(src=contact.photos[0].value, small='plus_img/small_test_face1.png')
+              img(src=contact.photo, small='plus_img/small_test_face1.png')
               span.p_m_n= contact.username
               .c
               span.p_m_t
@@ -83,7 +83,6 @@ html(xmlns='http://www.w3.org/1999/xhtml')
   script.
     var globalGroup = '!{JSON.stringify(groups)}';
     var currentpath = '/data';
-    console.log(globalGroup);
     $('#p_contact').click(function(){
         $.blockUI({ message: $('#contactForm')  }); 
         $('.blockOverlay').attr('title','Click to unblock').click($.unblockUI); 
@@ -118,7 +117,7 @@ html(xmlns='http://www.w3.org/1999/xhtml')
       socket.emit('sendfile', {'filename':filename, 'user':user, 'myname':'sun_love_'});
     }
     function shareFile(dir, group) {
-      socket.emit('shareFile', {'user':'#{user}','dir':dir,'group':group, 'path':currentpath});
+      socket.emit('shareFile', {'user':'#{userid}','dir':dir,'group':group, 'path':currentpath});
     }
     function unblockUI(){
       //email validity check
@@ -137,7 +136,6 @@ html(xmlns='http://www.w3.org/1999/xhtml')
       $.unblockUI();
     }
     $('#addcontact').click(function(){
-      console.log($('#contactcode').val());
       socket.emit('addcontact', {userid:"#{userid}",code:$('#contactcode').val()});
       $.unblockUI();
     });

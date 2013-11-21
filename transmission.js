@@ -3,6 +3,7 @@ var ProgressBar = require('progress');
 var sys = require('sys')
 var exec = require('child_process').exec;
 var sh = require('execSync');
+var sm = require('./splitmerge.js');
 
 function puts(error, stdout, stderr) { sys.puts(stdout) }
 
@@ -20,7 +21,7 @@ function get(id, cb) {
         })
 }
 
-function watch(id) {
+function watch(sender, receiver, id, hashid, index, torrentHash, callback) {
         get(id, function(err, torrent) {
                 if (err) {
                         throw err
@@ -41,8 +42,23 @@ function watch(id) {
                         downloadedEver = torrent.downloadedEver
                         WatchBar.tick(downloaded);
 
+                        //finish one piece.
                         if (torrent.sizeWhenDone == torrent.downloadedEver) {
-                                return remove(id)
+                                var arr = torrentHash[hashid];
+                                //finish one file
+                                if(arr.length==index+1){
+                                    //merge the file
+                                    sm.merge(__dirname+'/tempdata/'+hashid, __dirname+'/data/'+hashid);
+                                    //consider whether delete record in torrentHash
+                                    console.log('finished');
+                                } else {
+                                    var data = arr[index+1];
+                                    seedTorrentSeq(sender, receiver, __dirname+'/torrent/'+data.name,__dirname+'/tempdata/', hashid, index+1, torrentHash,callback);
+                                }
+								//callback to emit meesage, indicating finishing one piece. 
+								callback({userid:receiver, sender:sender, taskid:hashid,length:arr.length,index:index,torrentid:id});
+                                return;
+                                //return remove(id)
                         }
                         setTimeout(function() {
                                 get(id, tick)
@@ -58,19 +74,39 @@ function remove(id) {
                 if (err) {
                         throw err
                 }
-                console.log('torrent was removed')
+                console.log('torrent was removed');
         })
 }
 
-function seedTorrent(torrent, dir) {
+function removeAll(arr) {
+  console.log(arr);
+  for(var i=0; i<arr.length; i++){
+    remove(arr[i]);
+  }
+}
+
+//downloading
+function seedTorrentSeq(sender, receiver, torrent, dir, hashid, index, torrentHash, callback) {
   transmission.add(torrent, {
     "download-dir": dir
   }, function(err, result) {
           if (err) {
                   return console.log(err)
           }
-          var id = result.id
-          //watch(id)
+          var id = result.id;
+          watch(sender, receiver, id,hashid,index,torrentHash,callback);
+  })
+}
+
+//uploading
+function seedTorrent(torrent, dir, taskid, index, callback) {
+  transmission.add(torrent, {
+    "download-dir": dir
+  }, function(err, result) {
+          if (err) {
+                  return console.log(err)
+          }
+          callback(taskid, index, result.id);
   })
 }
 
@@ -79,5 +115,8 @@ function createTorrent(dir, piecesize, name, tracker) {
   console.log(code);
 }
 exports.seedTorrent = seedTorrent;
+exports.seedTorrentSeq = seedTorrentSeq;
 exports.remove = remove;
+exports.removeAll = removeAll;
 exports.createTorrent = createTorrent;
+

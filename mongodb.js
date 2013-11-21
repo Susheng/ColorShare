@@ -1,10 +1,10 @@
 var MongoClient = require('mongodb').MongoClient
   , format = require('util').format;    
 
-function insert(data){
+function insert(col,data){
   MongoClient.connect('mongodb://127.0.0.1:27017/colorDB', function(err, db) {
     if(err) throw err;
-    var collection = db.collection('localusers');
+    var collection = db.collection(col);
     collection.insert(data, function(err, docs) {
         db.close();
     });
