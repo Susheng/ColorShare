@@ -365,7 +365,7 @@ io.sockets.on('connection', function (socket) {
 				//save size info into sizearr in taskPara.
 				var stats = fs.statSync(__dirname+'/tempdata/'+file);
 				sizearr[index] = stats["size"] ;
-              	CreateSeedSendTorrent(__dirname+'/tempdata/'+file,__dirname+'/tempdata/',data.group,data.user,true,filename,index,arr.length);
+              	CreateSeedSendTorrent(__dirname+'/tempdata/'+file,__dirname+'/tempdata/',data.group,data.user,data.sendername,true,filename,index,arr.length);
             });
 		taskPara[filename]['sizearr'] = sizearr;
       });
@@ -389,11 +389,11 @@ io.sockets.on('connection', function (socket) {
       if(log.length == log.index + 1){
         //Save the transmission information into database.
         //type:1 represents receiver
-        var info = {type:1, userid:log.userid, target:log.sender, file:log.taskid, time:new Date().getTime()};
+        var info = {type:1, viewed:0, userid:log.userid, target:log.sender, targetname:log.sendername, file:log.taskid, time:new Date().getTime()};
         db.insert('log', info);
       }
-      
     }
+
     var parentdir = '/torrent/';
     var filename = __dirname + parentdir + data.name;
     stream.pipe(fs.createWriteStream(filename, {flags: 'w', encoding: 'binary', mode: 0666}));
@@ -411,7 +411,7 @@ io.sockets.on('connection', function (socket) {
               torrentHash[data.id] = arr;
           }   
           if(data.index == 0){
-              transmission.seedTorrentSeq(data.sender,data.receivername,filename, __dirname+'/tempdata/',data.id,data.index,torrentHash,callbackEmit);
+              transmission.seedTorrentSeq(data.sender, data.sendername, data.receivername,filename, __dirname+'/tempdata/',data.id,data.index,torrentHash,callbackEmit);
           }else{
               socket.disconnect();
           }
@@ -433,7 +433,7 @@ io.sockets.on('connection', function (socket) {
 });
 
 /**************************help functions*********************************/
-function CreateSeedSendTorrent(filename,seedpath,group,sender,split,id,index,length){
+function CreateSeedSendTorrent(filename,seedpath,group,sender,sendername,split,id,index,length){
   //create .torrent and seed it.
   crypto.randomBytes(8, function(ex, buf) {
     var torrentname = buf.toString('hex')+'.torrent';
@@ -458,7 +458,7 @@ function CreateSeedSendTorrent(filename,seedpath,group,sender,split,id,index,len
               taskPara[id]['connectedPeer'][memid] = 1;
             }
             var stream = ss.createStream();
-            ss(clientSocket).emit('transmitTorrent', stream, {name: torrentname, sender:sender, receivername:memid, split:split,id:id,index:index,length:length});
+            ss(clientSocket).emit('transmitTorrent', stream, {name: torrentname, sender:sender, sendername:sendername, receivername:memid, split:split,id:id,index:index,length:length});
             fs.createReadStream(torrentfile).pipe(stream);
           });
           clientSocket.on('finish',function(data, userid){

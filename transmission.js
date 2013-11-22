@@ -21,7 +21,7 @@ function get(id, cb) {
         })
 }
 
-function watch(sender, receiver, id, hashid, index, torrentHash, callback) {
+function watch(sender, sendername, receiver, id, hashid, index, torrentHash, callback) {
         get(id, function(err, torrent) {
                 if (err) {
                         throw err
@@ -48,15 +48,15 @@ function watch(sender, receiver, id, hashid, index, torrentHash, callback) {
                                 //finish one file
                                 if(arr.length==index+1){
                                     //merge the file
-                                    sm.merge(__dirname+'/tempdata/'+hashid, __dirname+'/data/'+hashid);
+                                    sm.merge(__dirname+'/tempdata/'+hashid, __dirname+'/data/received/'+sendername, hashid);
                                     //consider whether delete record in torrentHash
                                     console.log('finished');
                                 } else {
                                     var data = arr[index+1];
-                                    seedTorrentSeq(sender, receiver, __dirname+'/torrent/'+data.name,__dirname+'/tempdata/', hashid, index+1, torrentHash,callback);
+                                    seedTorrentSeq(sender, sendername, receiver, __dirname+'/torrent/'+data.name,__dirname+'/tempdata/', hashid, index+1, torrentHash,callback);
                                 }
 								//callback to emit meesage, indicating finishing one piece. 
-								callback({userid:receiver, sender:sender, taskid:hashid,length:arr.length,index:index,torrentid:id});
+								callback({userid:receiver, sender:sender, sendername:sendername, taskid:hashid,length:arr.length,index:index,torrentid:id});
                                 return;
                                 //return remove(id)
                         }
@@ -86,7 +86,7 @@ function removeAll(arr) {
 }
 
 //downloading
-function seedTorrentSeq(sender, receiver, torrent, dir, hashid, index, torrentHash, callback) {
+function seedTorrentSeq(sender, sendername, receiver, torrent, dir, hashid, index, torrentHash, callback) {
   transmission.add(torrent, {
     "download-dir": dir
   }, function(err, result) {
@@ -94,7 +94,7 @@ function seedTorrentSeq(sender, receiver, torrent, dir, hashid, index, torrentHa
                   return console.log(err)
           }
           var id = result.id;
-          watch(sender, receiver, id,hashid,index,torrentHash,callback);
+          watch(sender, sendername, receiver, id,hashid,index,torrentHash,callback);
   })
 }
 
